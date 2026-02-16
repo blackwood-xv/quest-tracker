@@ -148,10 +148,12 @@
 </div>
 
 <script type="module">
+    // Импортируем ядро Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-analytics.js";
+    // Импортируем ВСЕ необходимые функции базы данных
+    import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
     
-    // --- КОНФИГУРАЦИЯ FIREBASE (ЗАМЕНИ НА СВОЮ) ---
+    // Конфигурация
     const firebaseConfig = {
         apiKey: "AIzaSyDsWJtzx7O5ecDJsgLMkKLBN3kgAcWcTNM",
         authDomain: "questtracker-6730d.firebaseapp.com",
@@ -163,8 +165,8 @@
         measurementId: "G-PF1S37P2H7"
     };
 
+    // Инициализация
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
     const db = getDatabase(app);
     const questsRef = ref(db, 'quests_v1');
 
@@ -181,12 +183,14 @@
         const data = snapshot.val();
         quests = data ? Object.keys(data).map(key => ({ ...data[key], fireId: key })) : [];
         renderQuests(document.getElementById('factionFilter').value);
-        if (!flowSection.classList.contains('hidden')) renderFlow();
+        if (!document.getElementById('flowSection').classList.contains('hidden')) renderFlow();
     });
 
     // АВТОРИЗАЦИЯ
     document.getElementById('authBtn').onclick = () => {
-        if (btoa(userIn.value) === _U && btoa(passIn.value) === _P) {
+        const user = document.getElementById('userIn').value;
+        const pass = document.getElementById('passIn').value;
+        if (btoa(user) === _U && btoa(pass) === _P) {
             sessionStorage.setItem('isLoggedElite', 'true');
             runApp();
         } else {
@@ -207,7 +211,7 @@
         });
     }
 
-    // MAP ENGINE (ЗУМ К КУРСОРУ + БЛОК DRAG)
+    // MAP ENGINE
     function setupZoomPan(viewportId, containerId, onMapClick) {
         const vp = document.getElementById(viewportId), ct = document.getElementById(containerId);
         if (!vp || !ct) return;
@@ -223,7 +227,6 @@
             const rect = vp.getBoundingClientRect();
             const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
             const contentX = (mouseX - pos.x) / scale, contentY = (mouseY - pos.y) / scale;
-
             const delta = e.deltaY > 0 ? 0.8 : 1.25;
             scale = Math.min(Math.max(0.1, scale * delta), 5);
             pos.x = mouseX - contentX * scale;
@@ -260,7 +263,7 @@
         };
     }
 
-    // ЛОГИКА СОХРАНЕНИЯ
+    // СОХРАНЕНИЕ
     document.getElementById('saveQuest').onclick = () => {
         const fId = document.getElementById('editId').value;
         const selectedConn = Array.from(document.querySelectorAll('.conn-cb:checked')).map(cb => cb.value);
@@ -280,22 +283,21 @@
         if(fId) set(ref(db, 'quests_v1/' + fId), data);
         else push(questsRef, data);
 
-        show(homeSection);
+        window.show(document.getElementById('homeSection'));
     };
 
-    // РЕНДЕР СПИСКА
+    // РЕНДЕР
     window.renderQuests = (f = 'all') => {
         const l = document.getElementById('questList'); l.innerHTML = '';
         quests.filter(q => f === 'all' || q.faction === f).forEach(q => {
             const d = document.createElement('div');
             d.className = 'quest-card'; d.style.borderLeftColor = COLORS[q.faction];
-            d.onclick = () => openQuest(q.fireId);
+            d.onclick = () => window.openQuest(q.fireId);
             d.innerHTML = `<img src="${q.photo}"><div style="color:${COLORS[q.faction]}; font-size:10px; font-weight:700;">${q.faction.toUpperCase()}</div><h3>${q.quester}</h3><div style="font-size:12px; opacity:0.7">${q.reward}</div>`;
             l.appendChild(d);
         });
     };
 
-    // МОДАЛЬНОЕ ОКНО
     window.openQuest = (fId) => {
         const q = quests.find(x => x.fireId === fId);
         document.getElementById('modalBody').innerHTML = `
@@ -316,7 +318,7 @@
                     </div>
                 </div>
             </div>`;
-        modal.classList.add('active');
+        document.getElementById('modal').classList.add('active');
         setTimeout(() => setupZoomPan('viewportView', 'zoomContainerView'), 150);
     };
 
@@ -332,7 +334,8 @@
         const marker = document.getElementById('mapMarker');
         if(q.coords) { marker.style.left = q.coords.x+'%'; marker.style.top = q.coords.y+'%'; marker.style.display = 'block'; }
         else marker.style.display = 'none';
-        closeModal(); show(formSection);
+        window.closeModal(); 
+        window.show(document.getElementById('formSection'));
         setTimeout(() => {
             renderConnList();
             if(q.connections) q.connections.forEach(id => {
@@ -343,14 +346,17 @@
     };
 
     window.deleteQuest = (fId) => {
-        if(confirm('Удалить из глобальной базы?')) { remove(ref(db, 'quests_v1/' + fId)); closeModal(); }
+        if(confirm('Удалить из глобальной базы?')) { remove(ref(db, 'quests_v1/' + fId)); window.closeModal(); }
     };
 
     window.show = (section) => {
-        [homeSection, formSection, flowSection].forEach(s => s.classList.add('hidden'));
+        const home = document.getElementById('homeSection');
+        const form = document.getElementById('formSection');
+        const flow = document.getElementById('flowSection');
+        [home, form, flow].forEach(s => s.classList.add('hidden'));
         section.classList.remove('hidden');
-        if(section === formSection) renderConnList();
-        if(section === flowSection) renderFlow();
+        if(section === form) renderConnList();
+        if(section === flow) renderFlow();
     };
 
     function renderConnList() {
@@ -388,17 +394,19 @@
         });
     }
 
-    window.closeModal = () => modal.classList.remove('active');
-    document.getElementById('tabHome').onclick = () => show(homeSection);
-    document.getElementById('tabFlow').onclick = () => show(flowSection);
+    window.closeModal = () => document.getElementById('modal').classList.remove('active');
+    document.getElementById('tabHome').onclick = () => window.show(document.getElementById('homeSection'));
+    document.getElementById('tabFlow').onclick = () => window.show(document.getElementById('flowSection'));
     document.getElementById('createBtn').onclick = () => {
         document.getElementById('editId').value = '';
         document.getElementById('mapMarker').style.display = 'none';
-        tempCoords = null; show(formSection);
+        tempCoords = null; 
+        window.show(document.getElementById('formSection'));
     };
     document.getElementById('factionFilter').onchange = (e) => renderQuests(e.target.value);
     
     if (sessionStorage.getItem('isLoggedElite') === 'true') runApp();
 </script>
 </body>
+
 </html>
